@@ -2,6 +2,7 @@
  * Tests for /waitlist/page.tsx
  * Issue: successful join, failed join with toast, required-field validation
  * Issue #304: username availability check race condition
+ * Issue #305: unrecognized username-check response shapes default to error
  */
 import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
@@ -246,18 +247,65 @@ describe('WaitlistPage', () => {
         expect(screen.getByText(/available/i)).toBeInTheDocument();
       });
 
-      // Now resolve the stale first request with a conflicting result.
+      // Now resolve the stale "alice" request; it must not overwrite the newer status.
       await act(async () => {
         resolveFirst({ data: { available: false } });
-        await Promise.resolve();
       });
 
-      // The stale "taken" result must NOT overwrite the newer "available" status.
-      expect(screen.queryByText(/taken/i)).not.toBeInTheDocument();
+      // Status should still reflect the newer "alice2" result (available), not the stale one.
       expect(screen.getByText(/available/i)).toBeInTheDocument();
+      expect(screen.queryByText(/taken/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('unrecognized username-check response shapes (#305)', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
     });
 
-    it('only reflects the latest username check result', async () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('does not report "available" when the response shape is unrecognized', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      // Response with none of the anticipated boolean fields.
+      mockCheckUsername.mockResolvedValue({ data: { status: 'unknown' } } as ReturnType<
+        typeof waitlistApi.checkUsername
+      >);
+
+      render(<WaitlistPage />);
+
+      const usernameInput = screen.getByLabelText(/username/i);
+      await user.type(usernameInput, 'mystery');
+      await flushDebounce();
+
+      // Should not optimistically claim the username is available.
+      await waitFor(() => {
+        expect(screen.queryByText(/available/i)).not.toBeInTheDocument();
+      });
+    });
+
+    it('treats an error payload returned with a 200 status as an error, not available', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockCheckUsername.mockResolvedValue({ data: { error: 'rate limited' } } as ReturnType<
+        typeof waitlistApi.checkUsername
+      >);
+
+      render(<WaitlistPage />);
+
+      const usernameInput = screen.getByLabelText(/username/i);
+      await user.type(usernameInput, 'ratelimited');
+      await flushDebounce();
+
+      await waitFor(() => {
+        expect(screen.queryByText(/available/i)).not.toBeInTheDocument();
+      });
+    });
+
+    it('still reports "available" for the recognized data.available shape', async () => {
       const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
 
       mockCheckUsername.mockResolvedValue({ data: { available: true } } as ReturnType<
@@ -267,16 +315,47 @@ describe('WaitlistPage', () => {
       render(<WaitlistPage />);
 
       const usernameInput = screen.getByLabelText(/username/i);
-      await user.type(usernameInput, 'bob');
+      await user.type(usernameInput, 'goodname');
       await flushDebounce();
 
       await waitFor(() => {
-        expect(mockCheckUsername).toHaveBeenCalledWith('bob');
-      });
-
-      // The status shown must correspond to the latest checked username.
-      await waitFor(() => {
         expect(screen.getByText(/available/i)).toBeInTheDocument();
+      });
+    });
+
+    it('still reports "taken" for the recognized data.taken shape', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockCheckUsername.mockResolvedValue({ data: { taken: true } } as ReturnType<
+        typeof waitlistApi.checkUsername
+      >);
+
+      render(<WaitlistPage />);
+
+      const usernameInput = screen.getByLabelText(/username/i);
+      await user.type(usernameInput, 'takenname');
+      await flushDebounce();
+
+      await waitFor(() => {
+        expect(screen.getByText(/taken/i)).toBeInTheDocument();
+      });
+    });
+
+    it('still reports "taken" for the recognized data.exists shape', async () => {
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+      mockCheckUsername.mockResolvedValue({ data: { exists: true } } as ReturnType<
+        typeof waitlistApi.checkUsername
+      >);
+
+      render(<WaitlistPage />);
+
+      const usernameInput = screen.getByLabelText(/username/i);
+      await user.type(usernameInput, 'existsname');
+      await flushDebounce();
+
+      await waitFor(() => {
+        expect(screen.getByText(/taken/i)).toBeInTheDocument();
       });
     });
   });

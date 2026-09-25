@@ -35,12 +35,14 @@ export default function WaitlistPage() {
         // Ignore responses superseded by a newer check or a changed username.
         if (requestId !== usernameCheckId.current) return;
         // Tolerate a few common response shapes: { available }, { taken }, { exists }.
-        let available: boolean;
-        if (typeof data?.available === 'boolean') available = data.available;
-        else if (typeof data?.taken === 'boolean') available = !data.taken;
-        else if (typeof data?.exists === 'boolean') available = !data.exists;
-        else available = true;
-        setUsernameStatus(available ? 'available' : 'taken');
+        // Any unrecognized shape is treated as an error rather than optimistically
+        // assuming availability, so we never promise a username we can't confirm (#305).
+        let status: UsernameStatus;
+        if (typeof data?.available === 'boolean') status = data.available ? 'available' : 'taken';
+        else if (typeof data?.taken === 'boolean') status = data.taken ? 'taken' : 'available';
+        else if (typeof data?.exists === 'boolean') status = data.exists ? 'taken' : 'available';
+        else status = 'error';
+        setUsernameStatus(status);
       } catch {
         if (requestId !== usernameCheckId.current) return;
         setUsernameStatus('error');
