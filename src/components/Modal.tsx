@@ -23,6 +23,27 @@ const FOCUSABLE_SELECTORS = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(', ');
 
+/**
+ * Tracks the stack of currently-open dialogs (Modal and ConfirmDialog) so that
+ * only the top-most dialog responds to Escape. Both primitives register here on
+ * open and unregister on close, keeping their key handling coordinated (#316).
+ */
+const dialogStack: symbol[] = [];
+
+export function pushDialog(id: symbol) {
+  dialogStack.push(id);
+}
+
+export function popDialog(id: symbol) {
+  const index = dialogStack.lastIndexOf(id);
+  if (index !== -1) dialogStack.splice(index, 1);
+}
+
+/** Returns true when the given dialog is the top-most open dialog. */
+export function isTopDialog(id: symbol) {
+  return dialogStack.length > 0 && dialogStack[dialogStack.length - 1] === id;
+}
+
 export default function Modal({
   open,
   onClose,
@@ -34,11 +55,16 @@ export default function Modal({
   const panelRef = useRef<HTMLDivElement>(null);
   /** Remembers the element that had focus before the modal opened so we can restore it on close. */
   const triggerRef = useRef<Element | null>(null);
+  /** Stable identity for this dialog instance in the shared dialog stack. */
+  const dialogIdRef = useRef<symbol>(Symbol('modal'));
   /** Tracks where mousedown originated to prevent closing on dragged selections (#409). */
   const mouseDownTargetRef = useRef<EventTarget | null>(null);
 
   useEffect(() => {
     if (!open) return;
+
+    const dialogId = dialogIdRef.current;
+    pushDialog(dialogId);
 
     // Save the currently-focused element so we can restore it on close.
     triggerRef.current = document.activeElement;
@@ -50,6 +76,9 @@ export default function Modal({
     panelRef.current?.focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
+      // Only the top-most open dialog should react to Escape (#316).
+      if (!isTopDialog(dialogId)) return;
+
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
@@ -84,6 +113,7 @@ export default function Modal({
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
+      popDialog(dialogId);
       document.body.style.overflow = previousOverflow;
       // Restore focus to the triggering element when the modal closes.
       if (triggerRef.current instanceof HTMLElement) {

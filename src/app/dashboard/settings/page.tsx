@@ -125,21 +125,16 @@ export default function SettingsPage() {
             { key: 'bankCode', label: 'Bank Code', inputMode: 'numeric' as const, pattern: '[0-9]{3,6}' },
             { key: 'bankAccountNumber', label: 'Bank Account Number', inputMode: 'numeric' as const, pattern: '[0-9]{6,17}' },
           ].map(({ key, label, inputMode, pattern }) => (
-            <div key={key}>
-              {/* id derived from field key so htmlFor/id are always in sync (#157) */}
-              <label htmlFor={key} className="label">{label}</label>
-              <input
-                id={key}
-                className={`input ${fieldErrors[key] ? 'border-red-400 focus:border-red-400' : ''}`}
-                inputMode={inputMode}
-                pattern={pattern}
-                value={form[key as keyof typeof form]}
-                onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-              />
-              {fieldErrors[key] && (
-                <p className="text-xs text-red-500 mt-1">{fieldErrors[key]}</p>
-              )}
-            </div>
+            <FormField
+              key={key}
+              id={key}
+              label={label}
+              inputMode={inputMode}
+              pattern={pattern}
+              value={form[key as keyof typeof form]}
+              onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+              error={fieldErrors[key]}
+            />
           ))}
           <button type="submit" disabled={saving} className="btn-primary">
             {saving ? 'Saving...' : 'Save changes'}
@@ -199,6 +194,36 @@ export default function SettingsPage() {
                 className="shrink-0 p-1 text-gray-400 hover:text-gray-200"
                 aria-label={keyRevealed ? 'Hide API key' : 'Reveal API key'}
               >
-                {keyRevealed ? <EyeOff className="w-4 h-4" 
-
-/* … truncated 1143 chars — edit only what you need near the top … */
+                {keyRevealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+              <button
+                type="button"
+                onClick={copyApiKey}
+                className="shrink-0 p-1 text-gray-400 hover:text-gray-200"
+                aria-label="Copy API key"
+              >
+                {keyCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={dismissApiKey}
+              className="mt-3 text-sm text-amber-900 underline"
+            >
+              I&apos;ve saved it
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={generateKey}
+            disabled={generatingKey}
+            className="btn-primary"
+          >
+            {generatingKey ? 'Generating...' : 'Generate new API key'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
