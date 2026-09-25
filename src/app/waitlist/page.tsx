@@ -116,8 +116,36 @@ export default function WaitlistPage() {
             <fieldset disabled={loading} className="space-y-4">
               <FormField label="Email" type="email" required value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })} />
-              <FormField label="Username (optional)" type="text" required={false} value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })} />
+              <div>
+                <FormField label="Username (optional)" type="text" required={false} value={form.username}
+                  onChange={(e) => setForm({ ...form, username: e.target.value })} />
+                <div className="mt-1 flex items-center gap-1.5 text-sm" aria-live="polite">
+                  {usernameStatus === 'checking' && (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-gray-400" aria-hidden="true" />
+                      <span className="text-gray-500">Checking availability…</span>
+                    </>
+                  )}
+                  {usernameStatus === 'available' && (
+                    <>
+                      <CheckCircle className="w-4 h-4 text-green-500" aria-hidden="true" />
+                      <span className="text-green-600">Username is available</span>
+                    </>
+                  )}
+                  {usernameStatus === 'taken' && (
+                    <>
+                      <XCircle className="w-4 h-4 text-red-500" aria-hidden="true" />
+                      <span className="text-red-600">Username is already taken</span>
+                    </>
+                  )}
+                  {usernameStatus === 'error' && (
+                    <>
+                      <XCircle className="w-4 h-4 text-amber-500" aria-hidden="true" />
+                      <span className="text-amber-600">Couldn&apos;t verify username availability</span>
+                    </>
+                  )}
+                </div>
+              </div>
               <FormField label="Business Name (optional)" type="text" required={false} value={form.businessName}
                 onChange={(e) => setForm({ ...form, businessName: e.target.value })} />
               <FormField label="Country (optional)" type="text" required={false} value={form.country}
