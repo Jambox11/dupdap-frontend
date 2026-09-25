@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { CheckCircle, Loader2, XCircle } from 'lucide-react';
@@ -16,18 +16,24 @@ export default function WaitlistPage() {
   const [joined, setJoined] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle');
   const [formError, setFormError] = useState('');
+  // Monotonic id for the latest username check; stale responses are ignored (#304).
+  const usernameCheckId = useRef(0);
 
   // Debounced live availability check for the optional username field.
   useEffect(() => {
     const username = form.username.trim();
     if (!username) {
+      usernameCheckId.current += 1;
       setUsernameStatus('idle');
       return;
     }
     setUsernameStatus('checking');
+    const requestId = ++usernameCheckId.current;
     const handle = setTimeout(async () => {
       try {
         const { data } = await waitlistApi.checkUsername(username);
+        // Ignore responses superseded by a newer check or a changed username.
+        if (requestId !== usernameCheckId.current) return;
         // Tolerate a few common response shapes: { available }, { taken }, { exists }.
         let available: boolean;
         if (typeof data?.available === 'boolean') available = data.available;
@@ -36,6 +42,7 @@ export default function WaitlistPage() {
         else available = true;
         setUsernameStatus(available ? 'available' : 'taken');
       } catch {
+        if (requestId !== usernameCheckId.current) return;
         setUsernameStatus('error');
       }
     }, 400);
