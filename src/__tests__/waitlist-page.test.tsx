@@ -132,6 +132,20 @@ describe('WaitlistPage', () => {
         expect(mockToastError).toHaveBeenCalledWith('Failed to join waitlist');
       });
     });
+
+    it('does not throw a ReferenceError when the submission fails', async () => {
+      mockJoin.mockRejectedValue(new Error('Server error'));
+
+      render(<WaitlistPage />);
+
+      // If the catch block referenced an undefined setFormError, this would throw
+      // a ReferenceError and the toast would never fire.
+      await expect(fillAndSubmit('user@example.com')).resolves.not.toThrow();
+
+      await waitFor(() => {
+        expect(mockToastError).toHaveBeenCalled();
+      });
+    });
   });
 
   describe('required-field validation', () => {

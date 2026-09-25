@@ -15,6 +15,7 @@ export default function WaitlistPage() {
   const [loading, setLoading] = useState(false);
   const [joined, setJoined] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle');
+  const [formError, setFormError] = useState('');
 
   // Debounced live availability check for the optional username field.
   useEffect(() => {
@@ -48,6 +49,7 @@ export default function WaitlistPage() {
       return;
     }
     setLoading(true);
+    setFormError('');
     try {
       await waitlistApi.join(form);
       setJoined(true);
@@ -97,6 +99,11 @@ export default function WaitlistPage() {
             <p className="sr-only" aria-live="polite" aria-atomic="true">
               {loading ? 'Submitting, please wait…' : ''}
             </p>
+            {formError && (
+              <p role="alert" className="text-sm text-red-600">
+                {formError}
+              </p>
+            )}
             <fieldset disabled={loading} className="space-y-4">
               <FormField label="Email" type="email" required value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })} />
