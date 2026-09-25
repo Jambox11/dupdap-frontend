@@ -296,4 +296,48 @@ describe('RegisterPage', () => {
     expect(mockSetAuth).not.toHaveBeenCalled();
     expect(mockPush).not.toHaveBeenCalled();
   });
+
+  it('renders persistent inline form error banner on API failure (#408)', async () => {
+    const err = new AxiosError(
+      'Request failed',
+      'ERR_BAD_REQUEST',
+      undefined,
+      undefined,
+      { data: { message: 'Email already registered' }, status: 409, statusText: 'Conflict', headers: {}, config: {} as never },
+    );
+    mockRegister.mockRejectedValueOnce(err);
+
+    render(React.createElement(RegisterPage));
+    await fillForm();
+
+    expect(screen.queryByTestId('register-form-error')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId('register-submit-button'));
+
+    await waitFor(() => {
+      const banner = screen.getByTestId('register-form-error');
+      expect(banner).toBeInTheDocument();
+      expect(banner).toHaveTextContent(/email already registered/i);
+    });
+  });
+
+  it('clears inline form error banner when a new submission starts (#408)', async () => {
+    mockRegister.mockRejectedValueOnce(new Error('Network error'));
+
+    render(React.createElement(RegisterPage));
+    await fillForm();
+    await userEvent.click(screen.getByTestId('register-submit-button'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('register-form-error')).toHaveTextContent('Network error');
+    });
+
+    // Mock next submission to hang pending
+    mockRegister.mockReturnValueOnce(new Promise(() => {}));
+    await userEvent.click(screen.getByTestId('register-submit-button'));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('register-form-error')).not.toBeInTheDocument();
+    });
+  });
 });

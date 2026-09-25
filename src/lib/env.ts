@@ -4,7 +4,7 @@ export function getApiUrl(): string {
   const url = process.env.NEXT_PUBLIC_API_URL;
   if (url) return url;
 
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
     return DEV_API_URL;
   }
 

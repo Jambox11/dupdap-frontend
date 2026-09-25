@@ -1,6 +1,16 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { isAdmin } from './auth';
 import axios from 'axios';
 import { useAuthStore } from './store';
+
+vi.mock('./env', () => ({
+  getApiUrl: vi.fn(() => 'http://localhost:3000/api/v1'),
+}));
+
+vi.mock('./auth-redirect', () => ({
+  redirectToLogin: vi.fn(),
+  setAuthRedirectHandler: vi.fn(),
+}));
 
 vi.mock('axios', () => {
   const mockInstance = {
@@ -100,5 +110,35 @@ describe('auth token single source of truth', () => {
 
     expect(useAuthStore.getState().token).toBeNull();
     expect(localStorage.getItem('access_token')).toBeNull();
+  });
+});
+
+describe('isAdmin', () => {
+  it('returns true when merchant role is "admin"', () => {
+    expect(
+      isAdmin({ id: '1', email: 'a@b.com', businessName: 'Acme', status: 'active', role: 'admin' }),
+    ).toBe(true);
+  });
+
+  it('returns true when merchant role is "staff"', () => {
+    expect(
+      isAdmin({ id: '1', email: 'a@b.com', businessName: 'Acme', status: 'active', role: 'staff' }),
+    ).toBe(true);
+  });
+
+  it('returns false when merchant role is "merchant"', () => {
+    expect(
+      isAdmin({ id: '1', email: 'a@b.com', businessName: 'Acme', status: 'active', role: 'merchant' }),
+    ).toBe(false);
+  });
+
+  it('returns false when merchant role is undefined', () => {
+    expect(
+      isAdmin({ id: '1', email: 'a@b.com', businessName: 'Acme', status: 'active' }),
+    ).toBe(false);
+  });
+
+  it('returns false when merchant is null', () => {
+    expect(isAdmin(null)).toBe(false);
   });
 });

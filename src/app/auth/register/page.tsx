@@ -8,6 +8,7 @@ import { authApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { COUNTRIES } from '@/lib/countries';
 import { getErrorMessage } from '@/lib/errors';
+import { isAuthResponse } from '@/lib/types';
 
 interface PasswordChecks {
   length: boolean;
@@ -82,7 +83,13 @@ export default function RegisterPage() {
   };
 
   // Each field key doubles as the input id so htmlFor/id are always in sync (#156).
-  const field = (key: keyof typeof form, label: string, type = 'text', required = true) => (
+  const field = (
+    key: keyof typeof form,
+    label: string,
+    type = 'text',
+    required = true,
+    autoComplete?: string,
+  ) => (
     <div>
       <label htmlFor={key} className="label">{label}</label>
       <input
@@ -118,6 +125,17 @@ export default function RegisterPage() {
           <p className="sr-only" aria-live="polite" aria-atomic="true">
             {loading ? 'Creating account, please wait…' : ''}
           </p>
+
+          {formError && (
+            <div
+              data-testid="register-form-error"
+              role="alert"
+              className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700"
+            >
+              {formError}
+            </div>
+          )}
+
           <fieldset disabled={loading} className="space-y-4">
             {field('businessName', 'Business Name', 'text', true, 'organization')}
             {field('email', 'Email', 'email', true, 'email')}

@@ -88,6 +88,11 @@ export default function SettlementsPage() {
 
       <div className="card">
         {error ? <div className="px-6 py-4 text-sm text-red-500">{error}</div> : null}
+        {loading ? (
+          <span role="status" aria-live="polite" className="sr-only">
+            Loading settlements…
+          </span>
+        ) : null}
         {/* Mobile card layout */}
         <div className="md:hidden divide-y divide-gray-50">
           {loading ? (

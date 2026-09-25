@@ -31,4 +31,27 @@ describe('redirectToLogin', () => {
 
     expect(assign).toHaveBeenCalledWith('/auth/login?next=%2Fdashboard%2Fpayments');
   });
+
+  it('falls back to window.location.assign when a previously registered handler is unregistered mid-flight', () => {
+    const staleHandler = vi.fn();
+    const assign = vi.fn();
+
+    // 1. Register handler (e.g. AuthRedirectSetup mount)
+    setAuthRedirectHandler(staleHandler);
+
+    // 2. Unregister handler mid-flight (e.g. AuthRedirectSetup unmount cleanup)
+    setAuthRedirectHandler(null);
+
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/dashboard/settlements', search: '?status=pending', assign },
+      writable: true,
+    });
+
+    redirectToLogin();
+
+    // Stale handler must not be invoked
+    expect(staleHandler).not.toHaveBeenCalled();
+    // Must fall back to window.location.assign with encoded return path
+    expect(assign).toHaveBeenCalledWith('/auth/login?next=%2Fdashboard%2Fsettlements%3Fstatus%3Dpending');
+  });
 });

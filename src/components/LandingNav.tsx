@@ -1,11 +1,56 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 
 export function LandingNav() {
   const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setOpen(false);
+        toggleRef.current?.focus();
+        return;
+      }
+
+      if (event.key === 'Tab') {
+        const menu = menuRef.current;
+        if (!menu) return;
+
+        const focusable = Array.from(
+          menu.querySelectorAll<HTMLElement>(
+            'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          )
+        );
+
+        if (focusable.length === 0) return;
+
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+
+        if (event.shiftKey) {
+          if (active === first || !menu.contains(active)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (active === last || !menu.contains(active)) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [open]);
 
   return (
     <nav aria-label="Main navigation" className="border-b border-gray-100">
@@ -22,6 +67,7 @@ export function LandingNav() {
         </div>
 
         <button
+          ref={toggleRef}
           type="button"
           className="sm:hidden p-2 -mr-2 text-gray-600 hover:text-gray-900"
           aria-expanded={open}
@@ -35,6 +81,7 @@ export function LandingNav() {
 
       {open ? (
         <div
+          ref={menuRef}
           id="landing-mobile-menu"
           className="sm:hidden border-t border-gray-100 px-6 py-4 space-y-3"
         >

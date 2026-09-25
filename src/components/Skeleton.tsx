@@ -11,6 +11,18 @@ export function Skeleton({ className }: { className?: string }) {
 }
 
 /**
+ * Visually-hidden live-region announcement so screen readers know a section
+ * is loading rather than empty. The decorative pulse blocks stay aria-hidden.
+ */
+function LoadingAnnouncement({ label = 'Loading…' }: { label?: string }) {
+  return (
+    <span role="status" aria-live="polite" className="sr-only">
+      {label}
+    </span>
+  );
+}
+
+/**
  * Placeholder rows for a `<table>` body while data loads.
  * Renders `rows` × `cols` cells, each holding a shimmering bar so the
  * table keeps its eventual height and column layout.
@@ -26,6 +38,11 @@ export function SkeletonTableRows({
 }) {
   return (
     <>
+      <tr>
+        <td colSpan={cols} className="p-0">
+          <LoadingAnnouncement />
+        </td>
+      </tr>
       {Array.from({ length: rows }).map((_, r) => (
         <tr key={r}>
           {Array.from({ length: cols }).map((_, c) => (
@@ -52,6 +69,7 @@ export function SkeletonList({
 }) {
   return (
     <>
+      <LoadingAnnouncement />
       {Array.from({ length: rows }).map((_, r) => (
         <div key={r} className={cn('flex items-center justify-between', className)}>
           <div className="space-y-2">

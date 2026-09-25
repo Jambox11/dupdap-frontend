@@ -74,16 +74,48 @@ describe('useAuthStore', () => {
   });
 
   describe('persist middleware', () => {
-    it('state survives a simulated reload via the persist middleware', () => {
+    it('persists only token and merchant and does not serialize hasHydrated', () => {
       useAuthStore.getState().setAuth('survive-token', testMerchant);
-
-      // Reset the in-memory state to defaults
-      useAuthStore.setState({ token: null, merchant: null });
-
-      // Read back from localStorage to verify persistence
       const stored = JSON.parse(localStorage.getItem('dupdub-auth') ?? '{}');
       expect(stored.state.token).toBe('survive-token');
       expect(stored.state.merchant).toEqual(testMerchant);
+      expect(stored.state.hasHydrated).toBeUndefined();
+    });
+
+    it('sets hasHydrated to true upon rehydration from storage', async () => {
+      useAuthStore.setState({ hasHydrated: false, token: null, merchant: null });
+      localStorage.setItem(
+        'dupdub-auth',
+        JSON.stringify({ state: { token: 'persisted-token', merchant: testMerchant } }),
+      );
+      await useAuthStore.persist.rehydrate();
+      expect(useAuthStore.getState().hasHydrated).toBe(true);
+      expect(useAuthStore.getState().token).toBe('persisted-token');
+      expect(useAuthStore.getState().merchant).toEqual(testMerchant);
+    });
+
+    it('sets hasHydrated to true even when storage is empty', async () => {
+      useAuthStore.setState({ hasHydrated: false, token: null, merchant: null });
+      localStorage.clear();
+      await useAuthStore.persist.rehydrate();
+      expect(useAuthStore.getState().hasHydrated).toBe(true);
+    });
+
+    it('sets hasHydrated to true upon rehydration', async () => {
+      useAuthStore.setState({ hasHydrated: false });
+      expect(useAuthStore.getState().hasHydrated).toBe(false);
+
+      await useAuthStore.persist.rehydrate();
+      expect(useAuthStore.getState().hasHydrated).toBe(true);
+    });
+
+    it('sets hasHydrated to true even when storage is empty (first visit)', async () => {
+      localStorage.clear();
+      useAuthStore.setState({ hasHydrated: false });
+      expect(useAuthStore.getState().hasHydrated).toBe(false);
+
+      await useAuthStore.persist.rehydrate();
+      expect(useAuthStore.getState().hasHydrated).toBe(true);
     });
   });
 

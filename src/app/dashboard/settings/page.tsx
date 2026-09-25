@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { merchantApi } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
 import { FormField } from '@/components/FormField';
+import { getErrorMessage } from '@/lib/errors';
 
 function maskApiKey(key: string): string {
   if (key.length <= 8) return '••••••••';
@@ -51,8 +52,7 @@ export default function SettingsPage() {
       await merchantApi.update(form);
       toast.success('Profile updated');
     } catch (err: any) {
-      const data = err?.response?.data;
-      const errors = data?.errors;
+      const errors = err?.response?.data?.errors;
       if (errors && typeof errors === 'object') {
         const normalized: Record<string, string> = {};
         for (const [field, msg] of Object.entries(errors)) {
@@ -60,9 +60,9 @@ export default function SettingsPage() {
         }
         setFieldErrors(normalized);
         const first = Object.values(normalized)[0];
-        toast.error(first ?? data?.message ?? 'Failed to update profile');
+        toast.error(first ?? getErrorMessage(err));
       } else {
-        toast.error(data?.message ?? 'Failed to update profile');
+        toast.error(getErrorMessage(err));
       }
     } finally {
       setSaving(false);
@@ -125,21 +125,16 @@ export default function SettingsPage() {
             { key: 'bankCode', label: 'Bank Code', inputMode: 'numeric' as const, pattern: '[0-9]{3,6}' },
             { key: 'bankAccountNumber', label: 'Bank Account Number', inputMode: 'numeric' as const, pattern: '[0-9]{6,17}' },
           ].map(({ key, label, inputMode, pattern }) => (
-            <div key={key}>
-              {/* id derived from field key so htmlFor/id are always in sync (#157) */}
-              <label htmlFor={key} className="label">{label}</label>
-              <input
-                id={key}
-                className={`input ${fieldErrors[key] ? 'border-red-400 focus:border-red-400' : ''}`}
-                inputMode={inputMode}
-                pattern={pattern}
-                value={form[key as keyof typeof form]}
-                onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-              />
-              {fieldErrors[key] && (
-                <p className="text-xs text-red-500 mt-1">{fieldErrors[key]}</p>
-              )}
-            </div>
+            <FormField
+              key={key}
+              id={key}
+              label={label}
+              inputMode={inputMode}
+              pattern={pattern}
+              value={form[key as keyof typeof form]}
+              onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+              error={fieldErrors[key]}
+            />
           ))}
           <button type="submit" disabled={saving} className="btn-primary">
             {saving ? 'Saving...' : 'Save changes'}
@@ -207,22 +202,27 @@ export default function SettingsPage() {
                 className="shrink-0 p-1 text-gray-400 hover:text-gray-200"
                 aria-label="Copy API key"
               >
-                {keyCopied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                {keyCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               </button>
             </div>
             <button
               type="button"
               onClick={dismissApiKey}
-              className="mt-3 text-sm font-medium text-brand-600 hover:underline"
+              className="mt-3 text-sm text-amber-900 underline"
             >
-              I&apos;ve saved it, dismiss
+              I&apos;ve saved it
             </button>
           </div>
-        ) : null}
-        <button onClick={() => window.confirm("Are you sure you want to generate a new API key? This will invalidate your current key.") && generateKey()} disabled={generatingKey} className="btn-secondary">
-          {generatingKey ? 'Generating...' : 'Generate new API key'}
-        </button>
-        <p className="text-xs text-red-500 mt-2">Generating a new key will invalidate the previous one.</p>
+        ) : (
+          <button
+            type="button"
+            onClick={generateKey}
+            disabled={generatingKey}
+            className="btn-primary"
+          >
+            {generatingKey ? 'Generating...' : 'Generate new API key'}
+          </button>
+        )}
       </div>
     </div>
   );

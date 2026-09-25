@@ -55,4 +55,22 @@ describe('aggregatePaymentStats', () => {
     expect(result.totalVolume).toBe(0);
     expect(result.totalPayments).toBe(0);
   });
+
+  it('handles absent statuses by defaulting counts to zero and leaving map keys undefined', () => {
+    const stats: PaymentStats[] = [
+      { status: 'failed', count: '4', totalUsd: '120.00' },
+      { status: 'refunded', count: '1', totalUsd: '35.50' },
+    ];
+    const result = aggregatePaymentStats(stats);
+
+    expect(result.settledCount).toBe(0);
+    expect(result.pendingCount).toBe(0);
+    expect(result.statMap.settled).toBeUndefined();
+    expect(result.statMap.pending).toBeUndefined();
+    expect(result.statMap.unknown_status).toBeUndefined();
+    expect(result.statMap.failed).toEqual({ count: 4, total: 120 });
+    expect(result.statMap.refunded).toEqual({ count: 1, total: 35.5 });
+    expect(result.totalVolume).toBe(155.5);
+    expect(result.totalPayments).toBe(5);
+  });
 });
