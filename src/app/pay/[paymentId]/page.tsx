@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Clock, CheckCircle, XCircle, Loader2, Copy, Check, AlertTriangle } from 'lucide-react';
 import { paymentsApi } from '@/lib/api';
@@ -17,6 +17,10 @@ const STATUS_ICONS: Record<string, React.ReactNode> = {
 };
 
 const DEFAULT_STATUS_ICON = <Clock className="w-8 h-8 text-gray-400" />;
+
+const POLL_INTERVAL_MS = 5000;
+const POLL_MAX_ATTEMPTS = 24;
+const POLL_MAX_BACKOFF_MS = 60_000;
 
 function computeExpiresAt(payment: any): Date | null {
   if (payment?.expiresAt) return new Date(payment.expiresAt);
@@ -41,33 +45,68 @@ export default function PayPage({ params }: { params: { paymentId: string } }) {
   const [now, setNow] = useState(Date.now());
   const [copied, setCopied] = useState<string | null>(null);
   const [pollWarning, setPollWarning] = useState<string>('');
+  const pollNowRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     let pollAttempts = 0;
+    let consecutiveFailures = 0;
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
     paymentsApi.getByReference(params.paymentId)
       .then(({ data }) => setPayment(data))
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
 
-    const interval = setInterval(() => {
+    const scheduleNext = () => {
+      if (cancelled) return;
+      const backoff = Math.min(
+        POLL_INTERVAL_MS * 2 ** consecutiveFailures,
+        POLL_MAX_BACKOFF_MS,
+      );
+      timeout = setTimeout(poll, backoff);
+    };
+
+    const poll = () => {
+      if (cancelled) return;
       pollAttempts += 1;
-      if (pollAttempts >= 24) {
+      if (pollAttempts >= POLL_MAX_ATTEMPTS) {
         setPollWarning('Status checks are taking longer than expected.');
-        clearInterval(interval);
         return;
       }
       paymentsApi.getByReference(params.paymentId)
         .then(({ data }) => {
+          consecutiveFailures = 0;
           setPollWarning('');
           setPayment(data);
-          if (['settled', 'failed', 'expired'].includes(data.status)) clearInterval(interval);
+          if (['settled', 'failed', 'expired'].includes(data.status)) return;
+          scheduleNext();
         })
         .catch(() => {
+          consecutiveFailures += 1;
           setPollWarning('We are having trouble checking your payment status right now.');
+          scheduleNext();
         });
-    }, 5000);
+    };
 
-    return () => clearInterval(interval);
+    // Expose an immediate poll trigger so visibilitychange can refresh
+    // without waiting for the next scheduled interval tick.
+    pollNowRef.current = () => {
+      if (cancelled) return;
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+      poll();
+    };
+
+    scheduleNext();
+
+    return () => {
+      cancelled = true;
+      pollNowRef.current = null;
+      if (timeout) clearTimeout(timeout);
+    };
   }, [params.paymentId]);
 
   const expiresAt = payment ? computeExpiresAt(payment) : null;
@@ -80,6 +119,19 @@ export default function PayPage({ params }: { params: { paymentId: string } }) {
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(tick);
   }, [isPending, expiresAt]);
+
+  // When the tab becomes visible again, background throttling may have left
+  // `now` and the polled `payment` state out of sync. Recompute `now` and
+  // trigger an immediate poll so the countdown matches the latest status.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return;
+      setNow(Date.now());
+      pollNowRef.current?.();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
 
   const copy = async (text: string, key: string) => {
     try {
@@ -182,45 +234,14 @@ export default function PayPage({ params }: { params: { paymentId: string } }) {
                   </button>
                 </div>
               </div>
-
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs">
-                <p className="font-semibold text-amber-800 mb-1">Important: Include memo</p>
-                <div className="flex items-center gap-2">
-                  <code className="text-amber-900 font-bold text-sm break-all flex-1">{payment.stellarMemo}</code>
-                  <button
-                    onClick={() => copy(payment.stellarMemo, 'memo')}
-                    aria-label="Copy memo"
-                    className="shrink-0"
-                  >
-                    {copied === 'memo' ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-amber-600" />}
-                  </button>
-                </div>
-                <p className="text-amber-700 mt-1">Payment will not be detected without the memo.</p>
-              </div>
-              {pollWarning ? (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 mt-4">
-                  {pollWarning}
-                </div>
-              ) : null}
             </>
           ) : (
-            <div className="text-center py-4">
-              <div className="flex justify-center mb-3">{STATUS_ICONS[payment.status] ?? DEFAULT_STATUS_ICON}</div>
-              <p className="font-semibold text-gray-900 capitalize">{payment.status}</p>
-              <p className="text-sm text-gray-500 mt-1">
-                {payment.status === 'settled' && 'Payment complete. Thank you!'}
-                {payment.status === 'confirmed' && 'Payment detected. Processing settlement...'}
-                {payment.status === 'settling' && 'Converting to fiat and transferring...'}
-                {payment.status === 'failed' && 'Payment failed. Please contact the merchant.'}
-                {payment.status === 'expired' && 'This payment request has expired.'}
-                {!['settled', 'confirmed', 'settling', 'failed', 'expired'].includes(payment.status) && 'Checking payment status...'}
-              </p>
+            <div className="text-center py-6">
+              {STATUS_ICONS[payment.status] ?? DEFAULT_STATUS_ICON}
+              <p className="mt-3 text-sm font-medium text-gray-700 capitalize">{payment.status}</p>
+              {pollWarning && <p className="mt-2 text-xs text-amber-600">{pollWarning}</p>}
             </div>
           )}
-        </div>
-
-        <div className="px-6 pb-4 text-center text-xs text-gray-400">
-          Ref: {payment.reference}
         </div>
       </div>
     </div>
